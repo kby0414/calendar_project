@@ -14,6 +14,7 @@ const elements = Object.fromEntries([
     "todayLabel", "monthYear", "monthSummary", "prevBtn", "nextBtn", "todayBtn",
     "calendarTable", "calendarGrid", "statusMessage", "retryBtn",
     "selectedDateTitle", "selectedDateSubtitle", "daySchedules",
+    "addScheduleBtn", "actionMessage", "holidaySource", "selectedHolidays",
 ].map(id => [id, document.getElementById(id)]));
 let activeRequest = null;
 let requestNumber = 0;
@@ -44,7 +45,7 @@ function makeElement(tag, className, text) {
 function updateHeading() {
     elements.monthYear.textContent = `${state.year}년 ${state.month}월`;
     elements.todayLabel.textContent = `오늘 · ${dateLabel(localDateKey(new Date()))}`;
-    elements.prevBtn.disabled = state.year === 1 && state.month === 1;
+    elements.prevBtn.disabled = state.year === 2 && state.month === 1;
     elements.nextBtn.disabled = state.year === 9998 && state.month === 12;
 }
 
@@ -71,6 +72,8 @@ function showPlaceholder(message) {
     elements.selectedDateTitle.textContent = "선택한 날짜";
     elements.selectedDateSubtitle.textContent = message;
     elements.daySchedules.replaceChildren();
+    elements.selectedHolidays.hidden = true;
+    elements.holidaySource.textContent = '';
 }
 
 // 4. API → 상태 저장 → 달력 표시 → 선택 날짜 상세 표시 순서입니다.
@@ -82,6 +85,7 @@ async function loadCalendar() {
     const thisRequest = ++requestNumber;
     const { year, month } = state;
     state.loading = true;
+    elements.addScheduleBtn.disabled = true;
     state.days = [];
     updateHeading();
     elements.calendarTable.setAttribute("aria-busy", "true");
@@ -104,6 +108,10 @@ async function loadCalendar() {
             throw new Error("올바르지 않은 달력 응답");
         }
         state.days = data.grid.flat();
+        const info = data.holiday_info;
+        elements.holidaySource.textContent = info.missing_years.length
+            ? `공휴일 미확인 연도: ${info.missing_years.join(', ')}년 · 확인된 범위만 표시합니다.`
+            : `공휴일 · 네이버 달력 기준 (${info.verified_on} 확인) · 기념일 제외`;
         const today = localDateKey(new Date());
         if (!state.days.some(day => day.date === state.selectedDate)) {
             state.selectedDate = state.days.find(day => day.date === today && day.type === "current")?.date
@@ -111,22 +119,26 @@ async function loadCalendar() {
         }
         renderCalendar();
         renderAgenda();
-        const count = state.days.filter(day => day.type === "current")
-            .reduce((sum, day) => sum + day.schedules.length, 0);
+        // 같은 기간 일정이 여러 날짜에 표시되어도 월별 개수는 고유 id로 한 번만 셉니다.
+        const count = new Set(state.days.filter(day => day.type === "current")
+            .flatMap(day => day.schedules.map(schedule => schedule.id))).size;
         elements.monthSummary.textContent = count ? `이번 달에 ${count}개의 일정이 있어요.` : "이번 달에 등록된 일정이 없어요.";
         showStatus(`${year}년 ${month}월 일정을 불러왔습니다.`);
+        return true;
     } catch (error) {
         if (thisRequest !== requestNumber) return;
         state.days = [];
         showPlaceholder("달력을 불러오지 못했어요.");
         showStatus(timedOut ? "응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요."
             : "서버 연결을 확인한 뒤 다시 불러와주세요.", true);
+        return false;
     } finally {
         clearTimeout(timer);
         if (thisRequest === requestNumber) {
             state.loading = false;
             activeRequest = null;
             elements.calendarTable.setAttribute("aria-busy", "false");
+            elements.addScheduleBtn.disabled = state.days.length === 0;
         }
     }
 }
@@ -144,13 +156,20 @@ function renderCalendar() {
             button.dataset.date = day.date;
             button.classList.toggle("is-outside", day.type !== "current");
             button.classList.toggle("is-today", day.date === today);
-            button.classList.toggle("saturday", column === 5);
-            button.classList.toggle("sunday", column === 6);
-            button.setAttribute("aria-label", `${day.date}, ${dateLabel(day.date)}, 일정 ${day.schedules.length}개${day.date === today ? ", 오늘" : ""}`);
+            button.classList.toggle("saturday", column === 6);
+            button.classList.toggle("sunday", column === 0);
+            button.classList.toggle("is-holiday", day.holidays.length > 0);
+            button.setAttribute("aria-label", `${day.date}, ${dateLabel(day.date)}, 일정 ${day.schedules.length}개${day.date === today ? ", 오늘" : ""}${day.holidays.length ? `, ${day.holidays.join(', ')}` : ''}`);
             if (day.date === today) button.setAttribute("aria-current", "date");
             button.append(makeElement("span", "day-number", day.day));
+            if (day.holidays.length) {
+                const label = makeElement('span', 'holiday-label', day.holidays.join(' · '));
+                label.title = day.holidays.join(' · ');
+                button.append(label);
+            }
             day.schedules.slice(0, 2).forEach(schedule => {
                 const preview = makeElement("span", "event-preview", schedule.title || "제목 없는 일정");
+                preview.style.color = scheduleColor(schedule.category);
                 preview.title = schedule.title || "제목 없는 일정";
                 button.append(preview);
             });
@@ -180,21 +199,38 @@ function renderAgenda() {
     if (!day) return;
     elements.selectedDateTitle.textContent = dateLabel(day.date);
     elements.selectedDateSubtitle.textContent = `${day.date.slice(0, 4)}년 · ${day.schedules.length}개의 일정`;
+    elements.selectedHolidays.textContent = day.holidays.join(' · ');
+    elements.selectedHolidays.hidden = day.holidays.length === 0;
     if (day.schedules.length === 0) {
         const empty = makeElement("div", "empty-state");
         const icon = makeElement("span", "empty-icon", "✓");
         icon.setAttribute("aria-hidden", "true");
         empty.append(icon, makeElement("strong", "", "등록된 일정이 없어요"),
-            makeElement("p", "", "다른 날짜를 눌러 일정을 살펴보세요."));
+            makeElement("p", "", "일정 추가 버튼으로 하루를 계획해보세요."));
         elements.daySchedules.replaceChildren(empty);
         return;
     }
     const list = makeElement("ul", "schedule-list");
     day.schedules.forEach(schedule => {
         const card = makeElement("li", "schedule-card");
-        card.append(makeElement("span", "schedule-category", schedule.category || "미분류"),
-            makeElement("h3", "", schedule.title || "제목 없는 일정"));
+        const colorName = Object.hasOwn(SCHEDULE_COLORS, schedule.category) ? schedule.category : '검정';
+        const badge = makeElement('span', 'schedule-category', colorName);
+        const heading = makeElement('h3', '', schedule.title || '제목 없는 일정');
+        badge.style.color = heading.style.color = scheduleColor(schedule.category);
+        card.style.borderLeftColor = scheduleColor(schedule.category);
+        card.append(badge, heading);
+        card.append(makeElement('p', 'schedule-period', `${schedule.date} ~ ${schedule.end_date}`));
         if (schedule.location) card.append(makeElement("p", "schedule-location", `장소 · ${schedule.location}`));
+        const actions = makeElement('div', 'schedule-actions');
+        const edit = makeElement('button', 'text-button', '수정');
+        const remove = makeElement('button', 'text-button delete-button', '삭제');
+        edit.type = remove.type = 'button';
+        edit.setAttribute('aria-label', `${schedule.title} 수정`);
+        remove.setAttribute('aria-label', `${schedule.title} 삭제`);
+        edit.addEventListener('click', () => editor.open({ ...schedule, selectedDate: day.date }));
+        remove.addEventListener('click', () => editor.remove({ ...schedule, selectedDate: day.date }));
+        actions.append(edit, remove);
+        card.append(actions);
         list.append(card);
     });
     elements.daySchedules.replaceChildren(list);
@@ -203,7 +239,7 @@ function renderAgenda() {
 function changeMonth(amount) {
     // 0부터 세는 '전체 개월 수'로 바꾸면 12월↔1월의 연도 변경도 같은 방식으로 처리됩니다.
     const monthIndex = (state.year - 1) * 12 + state.month - 1 + amount;
-    if (monthIndex < 0 || monthIndex >= 9998 * 12) return;
+    if (monthIndex < 12 || monthIndex >= 9998 * 12) return;
     state.year = Math.floor(monthIndex / 12) + 1;
     state.month = monthIndex % 12 + 1;
     state.selectedDate = `${String(state.year).padStart(4, "0")}-${String(state.month).padStart(2, "0")}-01`;
@@ -228,6 +264,20 @@ elements.calendarGrid.addEventListener("click", event => {
     state.selectedDate = button.dataset.date;
     updateSelection();
     renderAgenda();
+});
+
+const editor = createScheduleEditor(async result => {
+    // 날짜를 바꿔 저장하면 바뀐 날짜의 월로 이동합니다. 사용자가 저장 결과를 바로 확인합니다.
+    const [year, month] = result.date.split('-').map(Number);
+    state.year = year;
+    state.month = month;
+    state.selectedDate = result.date;
+    elements.actionMessage.textContent = result.message;
+    const loaded = await loadCalendar();
+    if (!loaded) elements.actionMessage.textContent = `${result.message} 달력 새로고침은 실패했습니다. 다시 불러와주세요.`;
+});
+elements.addScheduleBtn.addEventListener('click', () => {
+    if (!state.loading && state.days.length) editor.open({ date: state.selectedDate });
 });
 
 loadCalendar();

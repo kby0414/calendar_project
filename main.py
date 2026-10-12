@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from database import engine
 import models
+from migrations import ensure_schedule_period_column
 
 from routers import calendar, schedules
 
@@ -14,6 +15,7 @@ from routers import calendar, schedules
 
 # 서버 실행 시 database.py에 정의된 테이블(schedules)을 DB에 생성
 models.Base.metadata.create_all(bind = engine)
+ensure_schedule_period_column(engine)
 
 # FastAPI 애플리케이션(서버) 객체 생성
 app = FastAPI()

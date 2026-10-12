@@ -32,6 +32,7 @@ def create_schedule(schedule: schemas.ScheduleCreate, db: Session = Depends(get_
     db_schedule = Schedule(
         title = schedule.title,
         date = schedule.date,
+        end_date = schedule.end_date,
         category = schedule.category,
         location = schedule.location, # 장소 이름
         latitude = lat, # 위도
@@ -74,6 +75,7 @@ def update_schedule(schedule_id: int, schedule: schemas.ScheduleCreate, db: Sess
 
     db_schedule.title = schedule.title
     db_schedule.date = schedule.date
+    db_schedule.end_date = schedule.end_date
     db_schedule.category = schedule.category
     db_schedule.location = schedule.location # 장소 이름
     db_schedule.latitude = lat # 위도 
