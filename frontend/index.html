@@ -1,27 +1,75 @@
 <!DOCTYPE html>
-<html lang='ko'>
+<html lang="ko">
 <head>
-    <meta charset='UTF-8'>
-    <meta name='viewpost' content="width=device-width, inital-scale=1.0">
-    <title>나만의 캘린더</title>
-    <link rel="stylesheet" href="style.css"
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f7f8f4">
+    <title>나의 달력 · 일정 한눈에 보기</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- defer: HTML 요소를 모두 만든 뒤 실행하므로 버튼과 달력을 안전하게 찾을 수 있습니다. -->
+    <script src="/static/app.js" defer></script>
 </head>
 <body>
-    <div class="calendar-container">
-        <div class="calendar-header">
-            <button id="prevBtn">◀</button>
-            <h2 id="monthYear">0000년 0월</h2>
-            <button id="nextBtn">▶</button>
-        </div>
-
-        <div class="weekdays">
-            <div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div><div>일</div>
-        </div>
-
-        <div class="calendar-grid" id="calendarGrid">
+    <main class="app-shell">
+        <header class="app-header">
+            <div class="brand">
+                <span class="brand-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                        <rect x="4" y="5" width="16" height="16" rx="3"/>
+                        <path d="M8 3v5m8-5v5M4 11h16m-11 5h2m2 0h2"/>
+                    </svg>
+                </span>
+                <div><h1>나의 달력</h1><p>하루의 계획을, 한눈에.</p></div>
             </div>
-    </div>
-
-    <script src="app.js"></script>
+            <p class="today-label" id="todayLabel"></p>
+        </header>
+        <div class="workspace">
+            <section class="calendar-panel" aria-labelledby="monthYear">
+                <header class="calendar-header">
+                    <div>
+                        <p class="eyebrow">MONTHLY CALENDAR</p>
+                        <h2 id="monthYear">달력</h2>
+                        <p class="month-summary" id="monthSummary">이번 달을 준비하고 있어요.</p>
+                    </div>
+                    <nav class="month-navigation" aria-label="달력 월 이동">
+                        <button type="button" class="icon-button" id="prevBtn" aria-label="이전 달">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+                        </button>
+                        <button type="button" class="today-button" id="todayBtn">오늘</button>
+                        <button type="button" class="icon-button" id="nextBtn" aria-label="다음 달">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg>
+                        </button>
+                    </nav>
+                </header>
+                <!-- table을 사용하면 화면 읽기 프로그램도 요일과 날짜의 관계를 알 수 있습니다. -->
+                <table class="calendar-table" aria-labelledby="monthYear" id="calendarTable" aria-busy="true">
+                    <thead><tr>
+                        <th scope="col">월</th><th scope="col">화</th><th scope="col">수</th>
+                        <th scope="col">목</th><th scope="col">금</th>
+                        <th scope="col" class="saturday">토</th><th scope="col" class="sunday">일</th>
+                    </tr></thead>
+                    <tbody id="calendarGrid"></tbody>
+                </table>
+                <footer class="calendar-footer">
+                    <span><span class="legend-today" aria-hidden="true"></span>오늘</span>
+                    <span><span class="legend-selected" aria-hidden="true"></span>선택한 날짜</span>
+                    <span class="calendar-hint">날짜를 눌러 일정을 확인하세요</span>
+                </footer>
+                <div class="status-bar" aria-live="polite" aria-atomic="true">
+                    <span id="statusMessage"></span>
+                    <button type="button" class="retry-button" id="retryBtn" hidden>다시 불러오기</button>
+                </div>
+            </section>
+            <aside class="agenda-panel" aria-labelledby="selectedDateTitle">
+                <p class="eyebrow">DAILY SCHEDULE</p>
+                <h2 id="selectedDateTitle">선택한 날짜</h2>
+                <p class="agenda-subtitle" id="selectedDateSubtitle">달력을 불러오는 중입니다.</p>
+                <div id="daySchedules" class="day-schedules"></div>
+                <p class="agenda-note">작은 계획도 잊지 않도록.<br>하루의 일정을 차근차근 살펴보세요.</p>
+            </aside>
+        </div>
+        <p class="app-footer">나의 달력 <span aria-hidden="true">/</span> 매일을 조금 더 가볍게</p>
+        <noscript>달력을 표시하려면 브라우저에서 JavaScript를 활성화해주세요.</noscript>
+    </main>
 </body>
 </html>

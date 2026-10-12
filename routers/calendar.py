@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 import calendar
 import datetime
 from sqlalchemy.orm import Session
@@ -20,9 +20,14 @@ router = APIRouter(
 # main.py에서 사용한 @app.get 대신 @router.get 사용함 prefix 덕분에 주소가 짧아짐
 # 특정 연/월의 달력 배열(7x6) 생성 API -> 기획서 반영해서 7x6 그리드 자동 월 전환 및 빈칸 처리
 @router.get('/{year}/{month}')
-def get_calendar(year : int, month : int, db : Session = Depends(get_db)):
-    # 일요일을 한 주의 시작으로 설정 (0: 월요일 ~ 6: 일요일)
-    cal = calendar.Calendar(firstweekday = 6)
+def get_calendar(
+    year: int = Path(..., ge=1, le=9998),
+    month: int = Path(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+):
+    # 화면의 요일 헤더와 동일하게 월요일부터 시작합니다.
+    # 다음 해 날짜까지 포함하는 42칸을 위해 최대 연도는 9998입니다.
+    cal = calendar.Calendar(firstweekday = 0)
     # 해당 연/월의 달력 데이터를 날짜 객체(date) 형식으로 주 단위로 가져옴
     # monthdatescalendar : 이전 달 끝부분과 다음 달의 시작부분 날짜가 자동으로 포함됨
     month_dates = cal.monthdatescalendar(year, month)
@@ -32,7 +37,7 @@ def get_calendar(year : int, month : int, db : Session = Depends(get_db)):
         # 현재 생성된 마지막 주의 마지막 날짜를 구함
         last_day = month_dates[-1][-1]
         # 그 다음 날부터 7일치의 날짜를 계산하여 새로운 주로 추가
-        next_week = [last_day + datetime.timedelta(day = i) for i in range(1, 8)]
+        next_week = [last_day + datetime.timedelta(days = i) for i in range(1, 8)]
         month_dates.append(next_week)
 
     # 달력 표에 표시되는 전체 42일의 시작 날짜와 끝 날짜 파악

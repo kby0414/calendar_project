@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware # CORS 설정 도구
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from database import engine
 import models
 
@@ -28,6 +31,11 @@ app.add_middleware(
 app.include_router(calendar.router)
 app.include_router(schedules.router)
 
-@app.get('/')
-def read_root(): # (UI/UX 구성은 나중)
-    return {'message': "캘린더 서버 테스트"}
+# 화면과 API를 같은 서버에서 제공합니다. 브라우저에서는 '/'로 달력에 접속합니다.
+# __file__ 기준 절대경로를 써야 다른 폴더에서 실행해도 CSS/JS 파일을 찾을 수 있습니다.
+FRONTEND_DIR = Path(__file__).resolve().parent / 'frontend'
+app.mount('/static', StaticFiles(directory=FRONTEND_DIR), name='static')
+
+@app.get('/', include_in_schema=False)
+def read_root():
+    return FileResponse(FRONTEND_DIR / 'index.html')
